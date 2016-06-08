@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Canvas006 Random Walk</title>
+        <style type="text/css">
+            body { margin: 0; }
+            #canvasMain {
+                image-rendering: pixelated;
+                border-style: solid;
+                border-width: 0.2px;
+                border-color: #000000;
+            }
+            #numberState, #numberColor {
+                width: 4em;
+            }
+        </style>
+	</head>
+	<body>
+        <canvas id="canvasMain" width="512" height="512"></canvas>
+
+        <p>
+            Speed <input id="rangeSpeed" type="range" value=256 step=1 min=1 max=1024 oninput="onInputRangeSpeed(this.value)">
+            / Feedback <input id="toggleFeedback" type="checkbox" checked onchange="onChangeToggleFeedback(this.checked)">
+        </p>
+
+        <script>
+            // util //
+            function mod(a, b) {
+                if (b < 0)
+                    return null;
+                else if (a < 0)
+                    return b + a;
+                else
+                    return a % b;
+            }
+
+            // canvas設定 //
+            var canvasMain = document.getElementById("canvasMain");
+            canvasMain.addEventListener("click", function(){clearCanvas()});
+            var width  = canvasMain.width;
+            var height = canvasMain.height;
+            var context = canvasMain.getContext('2d');
+            //context.imageSmoothingEnabled = false;
+            var imageData = context.getImageData(0, 0, width, height);
+            var pixels = imageData.data;
+
+            // フィードバック用 canvas
+            var canvasBack = document.createElement("canvas");
+            canvasBack.width = width;
+            canvasBack.height = height;
+            canvasBack.style.display = "none";
+            var ctxBack = canvasBack.getContext("2d");
+            document.body.appendChild(canvasBack);
+
+            var SPEED = document.getElementById("rangeSpeed").value;
+            var FEEDBACK = document.getElementById("toggleFeedback").value;
+            var point = {
+                x: 0,
+                y: 0
+                };
+
+            clearCanvas();
+            animate();
+
+            function animate() {
+                updateCanvas();
+                requestAnimationFrame(animate);
+            }
+
+            function updateCanvas() {
+                if (FEEDBACK) {
+                    feedback();
+                    randomwalk();
+                    scroll();
+                }
+                else {
+                    randomwalk();
+                }
+
+                imageData = context.getImageData(0, 0, width, height);
+                pixels = imageData.data;
+            }
+
+            function randomwalk() {
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                for (let i = 0; i < SPEED; ++i) {
+                    move();
+                    draw();
+                }
+            }
+
+            function feedback() {
+                for (var y = 0; y < height; ++y) {
+                    for (var x = 0; x < width; ++x) {
+                        var index = (y * width + x) * 4;
+                        pixels[index + 0] = Math.min(pixels[index + 0] * 1.02, 255); // R
+                        pixels[index + 1] = Math.min(pixels[index + 1] * 1.02, 255); // G
+                        pixels[index + 2] = Math.min(pixels[index + 2] * 1.02, 255); // B
+                        pixels[index + 3] *= 0.91; // A
+                    }
+                }
+                ctxBack.putImageData(imageData, 0, 0);
+
+                context.translate(width/2, height/2);
+                var a = Math.sin(Date.now() * 0.00014);
+                context.rotate(5 * a * a * Math.PI/180);
+                context.scale(0.966, 0.966);
+                context.drawImage(canvasBack, -width/2, -height/2);
+            }
+
+            function scroll()
+            {
+                imageData = context.getImageData(0, 0, width, height);
+                pixels = imageData.data;
+                for (var y = (height - 1); 0 <= y; --y) {
+                    for (var x = 0; x < width; ++x) {
+                        var index = (y * width + x) * 4;
+                        var prev = (mod(y - 1, height) * width + x) * 4;
+                        pixels[index + 0] = pixels[prev + 0]; // R
+                        pixels[index + 1] = pixels[prev + 1]; // G
+                        pixels[index + 2] = pixels[prev + 2]; // B
+                        pixels[index + 3] = 255; // A
+                    }
+                }
+                context.putImageData(imageData, 0, 0);
+            }
+
+            function move() {
+                let direction = Math.random();
+                if (direction < 0.25) {
+                    point.x = mod(point.x + 1, width);
+                }
+                else if (direction < 0.5) {
+                    point.x = mod(point.x - 1, width);
+                }
+                else if (direction < 0.75) {
+                    point.y = mod(point.y + 1, height);
+                }
+                else {
+                    point.y = mod(point.y - 1, height);
+                }
+            }
+
+            function draw() {
+                let time = 0.0002 * Date.now();
+                let color = HSVtoRGB(
+                    Math.abs(Math.sin(time)),
+                    Math.sin(time * 33),
+                    1
+                    );
+                context.fillStyle = toColorCode(color.r, color.g, color.b);
+                context.fillRect(point.x, point.y, 1, 1);
+            }
+
+            function clearCanvas() {
+                for (var y = 0; y < height; ++y) {
+                    for (var x = 0; x < width; ++x) {
+                        var index = (y * width + x) * 4;
+
+                        pixels[index + 0] = 255;
+                        pixels[index + 1] = 255;
+                        pixels[index + 2] = 255;
+                        pixels[index + 3] = 255;
+                    }
+                }
+                context.putImageData(imageData, 0, 0);
+            }
+
+            //  accepts parameters
+            // h  Object = {h:x, s:y, v:z}
+            // OR
+            // h, s, v
+            function HSVtoRGB(h, s, v) {
+                var r, g, b, i, f, p, q, t;
+                if (arguments.length === 1) {
+                    s = h.s, v = h.v, h = h.h;
+                }
+                i = Math.floor(h * 6);
+                f = h * 6 - i;
+                p = v * (1 - s);
+                q = v * (1 - f * s);
+                t = v * (1 - (1 - f) * s);
+                switch (i % 6) {
+                    case 0: r = v, g = t, b = p; break;
+                    case 1: r = q, g = v, b = p; break;
+                    case 2: r = p, g = v, b = t; break;
+                    case 3: r = p, g = q, b = v; break;
+                    case 4: r = t, g = p, b = v; break;
+                    case 5: r = v, g = p, b = q; break;
+                }
+                return {
+                    r: Math.round(r * 255),
+                    g: Math.round(g * 255),
+                    b: Math.round(b * 255)
+                };
+            }
+
+            function toColorCode(r, g, b) {
+                r = ("0" + Math.floor(r).toString(16)).slice(-2);
+                g = ("0" + Math.floor(g).toString(16)).slice(-2);
+                b = ("0" + Math.floor(b).toString(16)).slice(-2);
+                return "#" + r + g + b;
+            }
+
+            // UI //
+            function onInputRangeSpeed(value) {
+                SPEED = parseInt(value);
+            }
+
+            function onChangeToggleFeedback(value) {
+                FEEDBACK = value;
+            }
+        </script>
+	</body>
+</html>

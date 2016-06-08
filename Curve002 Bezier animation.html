@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=utf-8>
+    <title>Bezier Curve Animation</title>
+    <style>
+        #canvasEnv {
+            border: 1px;
+            border-style: solid;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvasEnv" width=512 height=512></canvas>
+
+    <script>
+        const N_POINT = 64;
+        const TPI = Math.PI * 2;
+
+        // utils //
+        function toColorCode(r, g, b) {
+            r = ("0" + Math.floor(r).toString(16)).slice(-2);
+            g = ("0" + Math.floor(g).toString(16)).slice(-2);
+            b = ("0" + Math.floor(b).toString(16)).slice(-2);
+            return "#" + r + g + b;
+        }
+
+        // canvas
+        var canvas = document.getElementById("canvasEnv");
+        var width = canvas.width;
+        var height = canvas.height;
+        var context = canvas.getContext("2d");
+        context.imageSmoothingEnabled = false;
+        var imageData = context.getImageData(0, 0, width, height);
+        var pixels = imageData.data;
+
+        // rendering buffer
+        var canvasBack = document.createElement("canvas");
+        canvasBack.width = width;
+        canvasBack.height = height;
+        canvasBack.style.display = "none";
+        var ctxBack = canvasBack.getContext("2d");
+        document.body.appendChild(canvasBack);
+
+        // init
+        var point = [];
+        for (var i = 0; i < N_POINT; ++i) {
+            point.push([width * i / (N_POINT - 1), height / 2]);
+        }
+
+        var aa = 0;
+        var xx = width / 2;
+        var yy = 0;
+        animate();
+
+        function animate() {
+            updateCanvas();
+            requestAnimationFrame(animate);
+        }
+
+        function updateCanvas() {
+            context.fillStyle = "#ffffff";
+            context.fillRect(0, 0, width, height);
+
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            feedback();
+
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            //context.fillStyle = "#aaeeff";
+            context.fillStyle = toColorCode(
+                normTrig(Math.sin(Date.now() * 0.000777)) * 63,
+                128 + normTrig(Math.sin(Date.now() * 0.00083)) * 110,
+                192 + normTrig(Math.sin(Date.now() * 0.00055)) * 63
+                );
+            context.fillRect(xx, 0, 3 + 4 * normTrig(Math.sin(Date.now() * 0.0006)), height);
+            xx = (xx + 3) % height;
+            context.fillStyle = toColorCode(
+                normTrig(Math.sin(Date.now() * 0.0002)) * 63,
+                128 + normTrig(Math.sin(Date.now() * 0.0006)) * 110,
+                192 + normTrig(Math.sin(Date.now() * 0.00091)) * 63
+                );
+            context.fillRect(0, yy, width, 3 + 4 * normTrig(Math.sin(Date.now() * 0.0006)));
+            yy = (yy + 3) % height;
+            //drawPoint();
+
+            context.strokeStyle = toColorCode(
+                normTrig(Math.sin(Date.now() * 0.00011)) * 50,
+                128 + normTrig(Math.sin(Date.now() * 0.000287)) * 127,
+                192 + normTrig(Math.sin(Date.now() * 0.0001434)) * 63
+                );;
+            context.fillStyle = "#0088ff";
+            context.lineCap = "round";
+            context.lineJoin = "round";
+            context.lineWidth = 50;
+
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.translate(width/2, height/2);
+            context.scale(0.4, 0.4);
+            context.rotate(aa);
+            aa += 0.03
+            drawBezier();
+            updatepoint();
+
+            imageData = context.getImageData(0, 0, width, height);
+            pixels = imageData.data;
+        }
+
+        function feedback() {
+            for (var y = 0; y < height; ++y) {
+                for (var x = 0; x < width; ++x) {
+                    var index = (y * width + x) * 4;
+                    pixels[index + 0] = Math.min(pixels[index + 0] * 1.02, 255); // R
+                    pixels[index + 1] = Math.min(pixels[index + 1] * 1.02, 255); // G
+                    pixels[index + 2] = Math.min(pixels[index + 2] * 1.02, 255); // B
+                    pixels[index + 3] *= 0.91; // A
+                }
+            }
+            ctxBack.putImageData(imageData, 0, 0);
+
+            context.translate(width/2, height/2);
+            context.rotate(21 * Math.PI/180);
+            context.scale(0.966, 0.966);
+            context.drawImage(canvasBack, -width/2, -height/2);
+        }
+
+        function drawPoint() {
+            var s = 2; // rect size
+            for (var i = 0; i < N_POINT; ++i) {
+                context.fillRect(point[i][0] - s, point[i][1] - s, 2 * s, 2 * s);
+            }
+        }
+
+        function updatepoint() {
+            for (var i = 1; i < N_POINT - 1; ++i) {
+                var phase = Date.now() * 0.001;
+
+                point[i][0] = width  * (
+                    + 0.5 * normTrig(Math.cos(TPI * (phase + i * 0.717)))
+                    + 0.4 * normTrig(Math.cos(TPI * phase + i * 0.199 * Math.sin(phase)))
+                    + 0.1 * normTrig(Math.cos(4.111 * phase))
+                    );
+
+                point[i][1] = height * (
+                    + 0.3 * normTrig(Math.sin(TPI * (phase + i * 0.417)))
+                    + 0.3 * normTrig(Math.sin(TPI * (phase + i * 0.992)))
+                    + 0.4 * normTrig(Math.sin(TPI * (phase + i * 0.024)))
+                    );
+            }
+
+            point[0][0] = width  * normTrig(Math.sin(TPI * phase * 0.1));
+            point[0][1] = height * normTrig(Math.cos(TPI * phase * 0.1));
+
+            point[N_POINT - 1][0] = width  * normTrig(Math.sin(TPI * (phase * 0.1 + 0.5)));
+            point[N_POINT - 1][1] = height * normTrig(Math.cos(TPI * (phase * 0.1 + 0.5)));
+        }
+
+        function normTrig(value) {
+            return 0.5 + 0.5 * value;
+        }
+
+        function drawBezier() {
+            var size = 8;
+
+            context.beginPath();
+            context.moveTo(point[0][0], point[0][1]);
+            for (var t = 0; t <= 400; ++t) { // これなら誤差は出ない
+                var p = bezierCurve(t / 400);
+                context.lineTo(p[0], p[1]);
+            }
+            context.stroke();
+            for (var t = ((Date.now() * 0.00005) % 0.1); t <= 1; t += 0.1) { // 浮動小数点型の誤差が積み重なって t == 1 にはならない
+                var p = bezierCurve(t);
+                context.fillRect(p[0] - size / 2, p[1] - size / 2, size, size)
+            }
+        }
+
+        function bezierCurve(t) {
+            var sum = [0, 0];
+            for (var i = 0; i < point.length; ++i) {
+                var a = basis(point.length - 1, i, t);
+                sum[0] += point[i][0] * a;
+                sum[1] += point[i][1] * a;
+            }
+            return sum;
+        }
+
+        function basis(n, i, t) {
+            return binomialCoefficient(n, i) * Math.pow(t, i) * Math.pow(1 - t, n - i);
+        }
+
+        function binomialCoefficient(n, k) {
+            // knuthによるアルゴリズムらしい
+            var r = 1;
+            for (var i = 1; i <= k; ++i) {
+                r *= n--;
+                r /= i;
+            }
+            return r;
+        }
+
+        function interp(a, b, r) {
+            return (1 - r) * a + r * b;
+        }
+    </script>
+</body>
+</html>
